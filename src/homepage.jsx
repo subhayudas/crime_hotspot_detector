@@ -1,4 +1,4 @@
-// src/HomePage.js
+
 import React, { useState } from 'react';
 import './HomePage.css';
 
@@ -12,11 +12,11 @@ const HomePage = () => {
     if (pressCount + 1 === 3) {
       setStatusMsg('Emergency Triggered! Notifying nearby users...');
       triggerEmergency();
-      setPressCount(0); // Reset after triggering emergency
+      setPressCount(0);
     }
     
     setTimeout(() => {
-      setPressCount(0); // Reset if no presses within 5 seconds
+      setPressCount(0);
     }, 5000);
   };
 
