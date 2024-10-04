@@ -1,5 +1,5 @@
 
-// src/MapPage.js
+
 import React, { useEffect } from 'react';
 
 const MapPage = () => {
@@ -8,13 +8,12 @@ const MapPage = () => {
   }, []);
 
   const initMap = () => {
-    const centerLocation = { lat: 37.7749, lng: -122.4194 }; // Example coordinates (San Francisco)
+    const centerLocation = { lat: 37.7749, lng: -122.4194 }; 
     const map = new window.google.maps.Map(document.getElementById('map'), {
       zoom: 12,
       center: centerLocation,
     });
 
-    // Add a crime hotspot marker
     new window.google.maps.Marker({
       position: centerLocation,
       map: map,
