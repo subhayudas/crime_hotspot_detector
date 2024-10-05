@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Locations with Geofencing & Shortest Route</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f4f7fc;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        #map-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            padding: 20px;
+        }
+        #map {
+            height: 500px;
+            width: 80%;
+            border: 3px solid #4CAF50;
+            border-radius: 10px;
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        #notification {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            color: #fff;
+            display: none;
+        }
+        .inside {
+            background-color: #dc3545;
+        }
+        .outside {
+            background-color: #28a745;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    Real-Time Location & Geofencing Tracker
+</header>
+
+<div id="map-container">
+    <div id="map"></div>
+    <div id="controls">
+        <button class="btn" onclick="reroute()">Find Shortest Route</button>
+    </div>
+    <div id="notification"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
+<script>
+    const geofences = [
+        { latitude: 23.25, longitude: 85.26, radius: 1000 },
+        { latitude: 23.30, longitude: 85.30, radius: 500 },
+        { latitude: 23.20, longitude: 85.20, radius: 2000 }
+    ];
+
+    const options = {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 2000
+    };
+
+    const map = L.map('map').setView([51.505, -0.09], 13);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    let marker1, circle1, marker2, circle2, routeControl, zoomed;
+    let insideGeofence = false;
+
+    navigator.geolocation.watchPosition(successUser, error, options);
+
+    function successUser(pos) {
+        const lat1 = pos.coords.latitude;
+        const lng1 = pos.coords.longitude;
+
+        if (marker1) {
+            map.removeLayer(marker1);
+            map.removeLayer(circle1);
+        }
+
+        marker1 = L.marker([lat1, lng1]).addTo(map).bindPopup("Your Location");
+        circle1 = L.circle([lat1, lng1], { radius: 500, color: "#FF5733", fillColor: "#FFC300", fillOpacity: 0.5 }).addTo(map);
+
+        checkGeofences(lat1, lng1);
+
+        if (!zoomed) {
+            zoomed = map.fitBounds(circle1.getBounds());
+        }
+
+        map.setView([lat1, lng1]);
+    }
+
+    function checkGeofences(userLat, userLng) {
+        let insideAnyGeofence = false;
+
+        geofences.forEach((geofence) => {
+            const distance = calculateDistance(userLat, userLng, geofence.latitude, geofence.longitude);
+
+            if (distance <= geofence.radius) {
+                insideAnyGeofence = true;
+                if (!insideGeofence) {
+                    insideGeofence = true;
+                    const message = `You have entered the geofenced area at (${geofence.latitude}, ${geofence.longitude})! Please change your path.`;
+                    showNotification(message, true);
+                }
+            }
+        });
+
+        if (!insideAnyGeofence && insideGeofence) {
+            insideGeofence = false;
+            showNotification("You have left the geofenced area.", false);
+        }
+
+        if (!insideAnyGeofence) {
+            showNotification("You are outside all geofenced areas.", true);
+        }
+    }
+
+    function calculateDistance(lat1, lng1, lat2, lng2) {
+        const R = 6371000;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return R * c;
+    }
+
+    function showNotification(message, isInside) {
+        const notification = document.getElementById("notification");
+        notification.innerText = message;
+        notification.className = isInside ? 'inside' : 'outside';
+        notification.style.display = 'block';
+    }
+
+    function error(err) {
+        if (err.code === 1) {
+            alert("Please allow geolocation access");
+        } else {
+            alert("Cannot get current location");
+        }
+    }
+
+    function reroute() {
+        if (marker2) {
+            plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
+        } else {
+            alert("No second user to reroute to.");
+        }
+    }
+
+    function simulateUser2() {
+        const lat2 = marker1.getLatLng().lat + 0.005;
+        const lng2 = marker1.getLatLng().lng + 0.005;
+        successUser2(lat2, lng2);
+    }
+
+    function successUser2(lat2, lng2) {
+        if (marker2) {
+            map.removeLayer(marker2);
+            map.removeLayer(circle2);
+        }
+
+        marker2 = L.marker([lat2, lng2]).addTo(map).bindPopup("Simulated User Location");
+        circle2 = L.circle([lat2, lng2], { radius: 500, color: "#1E90FF", fillColor: "#87CEFA", fillOpacity: 0.5 }).addTo(map);
+
+        plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
+
+        map.setView([lat2, lng2]);
+    }
+
+    function plotRoute(locations) {
+        if (routeControl) {
+            map.removeControl(routeControl);
+        }
+        routeControl = L.Routing.control({
+            waypoints: locations,
+            routeWhileDragging: false
+        }).addTo(map);
+    }
+
+    setInterval(simulateUser2, 5000);
+</script>
+</body>
+</html>
