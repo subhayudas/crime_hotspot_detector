@@ -83,19 +83,23 @@
         .error {
             background-color: #dc3545; /* Red */
         }
-        label {
-            display: block;
-            margin: 10px 0 5px;
-        }
-        textarea, select {
-            width: calc(100% - 20px);
+        .notification {
             padding: 10px;
             border-radius: 5px;
-            border: 1px solid #ccc;
-            margin-bottom: 10px;
+            margin-top: 10px;
+            transition: opacity 0.5s;
         }
-        textarea {
-            resize: none;
+        #hotspot-notification {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #ffcc00; /* Yellow */
+            border-radius: 5px;
+            display: none; /* Hidden by default */
+        }
+        .loading-spinner {
+            display: none; /* Hidden by default */
+            text-align: center;
+            margin: 20px 0;
         }
     </style>
 </head>
@@ -107,6 +111,9 @@
 
 <div id="map-container">
     <div id="map"></div>
+    <div class="loading-spinner" id="loading-spinner">
+        <i class="fas fa-spinner fa-spin"></i> Loading route...
+    </div>
     <div id="controls">
         <button class="btn" onclick="reroute()">Find Shortest Route</button>
         <button class="btn" onclick="saveGeofences()">Save Geofences</button>
@@ -120,7 +127,8 @@
             <option value="no-crime">Avoid High-Crime Areas</option>
         </select>
     </div>
-    <div id="notification"></div>
+    <div id="notification" class="notification"></div>
+    <div id="hotspot-notification"></div> <!-- Hotspot notification here -->
 
     <div id="reporting-container">
         <h3>Report an Incident</h3>
@@ -145,9 +153,9 @@
 <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 <script>
     const geofences = [
-        { latitude: 23.25, longitude: 85.26, radius: 1000 },
-        { latitude: 23.30, longitude: 85.30, radius: 500 },
-        { latitude: 23.20, longitude: 85.20, radius: 2000 }
+        { latitude: 23.25, longitude: 85.26, radius: 800 }, 
+        { latitude: 23.30, longitude: 85.30, radius: 600 }, 
+        { latitude: 23.20, longitude: 85.20, radius: 500 }   
     ];
 
     const predefinedPath = [
@@ -181,6 +189,16 @@
     map.addControl(drawControl);
 
     navigator.geolocation.watchPosition(successUser, error, options);
+
+    // Draw geofences on map
+    geofences.forEach(geofence => {
+        L.circle([geofence.latitude, geofence.longitude], {
+            radius: geofence.radius,
+            color: "red",
+            fillColor: "#8B0000",
+            fillOpacity: 0.5
+        }).addTo(map);
+    });
 
     map.on(L.Draw.Event.CREATED, function (event) {
         const layer = event.layer;
@@ -259,12 +277,22 @@
     }
 
     function checkProximityToPath(userLat, userLng) {
+        const hotspotNotification = document.getElementById("hotspot-notification");
+        let approachingHotspot = false;
+
         predefinedPath.forEach(point => {
             const distance = calculateDistance(userLat, userLng, point.lat, point.lng);
-            if (distance < 100) { // Distance in meters
-                alert(`You are approaching a hotspot, please consider changing your path.`);
+            if (distance < 200) { 
+                approachingHotspot = true;
             }
         });
+
+        if (approachingHotspot) {
+            hotspotNotification.style.display = 'block';
+            hotspotNotification.innerText = 'You are approaching a hotspot, please consider changing your path.';
+        } else {
+            hotspotNotification.style.display = 'none'; // Hide notification when not approaching
+        }
     }
 
     function calculateDistance(lat1, lng1, lat2, lng2) {
@@ -283,7 +311,7 @@
     function showNotification(message, isInside) {
         const notification = document.getElementById("notification");
         notification.innerText = message;
-        notification.className = isInside ? 'inside-notification' : 'outside-notification';
+        notification.className = isInside ? 'notification success' : 'notification error';
         notification.style.display = 'block';
     }
 
@@ -296,13 +324,34 @@
     }
 
     function plotRoute(locations) {
+        const loadingSpinner = document.getElementById('loading-spinner');
+        loadingSpinner.style.display = 'block'; // Show loading spinner
+
         if (routeControl) {
             map.removeControl(routeControl);
         }
-        routeControl = L.Routing.control({
+
+        // Get selected routing option
+        const selectedOption = document.getElementById('route-options').value;
+        const routingOptions = {
             waypoints: locations,
-            routeWhileDragging: false
-        }).addTo(map);
+            routeWhileDragging: false,
+        };
+
+        // Implement logic for routing options
+        if (selectedOption === "no-highways") {
+            // Example: Adjust to avoid highways (specific implementation depends on the routing library)
+        } else if (selectedOption === "no-tolls") {
+            // Example: Adjust to avoid tolls
+        } else if (selectedOption === "no-crime") {
+            // Example: Adjust to avoid high-crime areas
+        }
+
+        routeControl = L.Routing.control(routingOptions).addTo(map);
+
+        routeControl.on('routesfound', function() {
+            loadingSpinner.style.display = 'none'; // Hide loading spinner when route found
+        });
     }
 
     function saveGeofences() {
