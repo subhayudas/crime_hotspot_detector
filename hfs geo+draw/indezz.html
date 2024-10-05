@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Locations with Geofencing & Shortest Route</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: url('https://example.com/professional-background.jpg') no-repeat center center fixed;
+            background-size: cover;
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+        header {
+            background-color: rgba(76, 175, 80, 0.9);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 700;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        #map-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        #map {
+            height: 500px;
+            width: 80%;
+            border: 3px solid #4CAF50;
+            border-radius: 10px;
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        #controls, #routing-options {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+            margin: 0 10px;
+        }
+        .btn:hover {
+            background-color: #45a049;
+            transform: scale(1.05);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        #reporting-container {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #4CAF50;
+            border-radius: 5px;
+            background-color: #ffffff;
+            width: 80%;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        #report-notification {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            color: #fff;
+        }
+        .success {
+            background-color: #28a745; /* Green */
+        }
+        .error {
+            background-color: #dc3545; /* Red */
+        }
+        label {
+            display: block;
+            margin: 10px 0 5px;
+        }
+        textarea {
+            width: calc(100% - 20px);
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+            resize: none;
+        }
+        select {
+            width: calc(100% - 20px);
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    Real-Time Location & Geofencing Tracker
+</header>
+
+<div id="map-container">
+    <div id="map"></div>
+    <div id="controls">
+        <button class="btn" onclick="reroute()">Find Shortest Route</button>
+        <button class="btn" onclick="saveGeofences()">Save Geofences</button>
+    </div>
+    <div id="routing-options">
+        <label for="route-options">Routing Options:</label>
+        <select id="route-options">
+            <option value="">Select an option</option>
+            <option value="no-highways">Avoid Highways</option>
+            <option value="no-tolls">Avoid Tolls</option>
+            <option value="no-crime">Avoid High-Crime Areas</option>
+        </select>
+    </div>
+    <div id="notification"></div>
+
+    <div id="reporting-container">
+        <h3>Report an Incident</h3>
+        <form id="incident-form">
+            <label for="incident-type">Type of Incident:</label>
+            <select id="incident-type" required>
+                <option value="suspicious_activity">Suspicious Activity</option>
+                <option value="theft">Theft</option>
+                <option value="vandalism">Vandalism</option>
+                <option value="other">Other</option>
+            </select>
+            <label for="incident-description">Description:</label>
+            <textarea id="incident-description" required></textarea>
+            <button type="submit" class="btn">Submit Report</button>
+        </form>
+        <div id="report-notification" style="display: none;"></div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+<script>
+    const geofences = [
+        { latitude: 23.25, longitude: 85.26, radius: 1000 },
+        { latitude: 23.30, longitude: 85.30, radius: 500 },
+        { latitude: 23.20, longitude: 85.20, radius: 2000 }
+    ];
+
+    const options = {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 2000
+    };
+
+    const map = L.map('map').setView([23.418674, 85.435309], 13);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    let marker1, circle1, marker2, circle2, routeControl, zoomed;
+    let insideGeofence = false;
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    const drawControl = new L.Control.Draw({
+        edit: {
+            featureGroup: drawnItems
+        }
+    });
+    map.addControl(drawControl);
+
+    navigator.geolocation.watchPosition(successUser, error, options);
+
+    map.on(L.Draw.Event.CREATED, function (event) {
+        const layer = event.layer;
+        drawnItems.addLayer(layer);
+        const geoJson = layer.toGeoJSON();
+        console.log(geoJson);
+    });
+
+    let incidentMarker;
+
+    map.on('click', function(e) {
+        if (incidentMarker) {
+            map.removeLayer(incidentMarker);
+        }
+        incidentMarker = L.marker(e.latlng).addTo(map).bindPopup("Incident Location").openPopup();
+    });
+
+    function successUser(pos) {
+        const lat1 = pos.coords.latitude;
+        const lng1 = pos.coords.longitude;
+
+        if (marker1) {
+            map.removeLayer(marker1);
+            map.removeLayer(circle1);
+        }
+
+        marker1 = L.marker([lat1, lng1]).addTo(map).bindPopup("Your Location");
+        circle1 = L.circle([lat1, lng1], { radius: 500, color: "#FF5733", fillColor: "#FFC300", fillOpacity: 0.5 }).addTo(map);
+
+        checkGeofences(lat1, lng1);
+
+        if (!zoomed) {
+            zoomed = map.fitBounds(circle1.getBounds());
+        }
+
+        map.setView([lat1, lng1]);
+    }
+
+    function checkGeofences(userLat, userLng) {
+        let insideAnyGeofence = false;
+
+        geofences.forEach((geofence) => {
+            const distance = calculateDistance(userLat, userLng, geofence.latitude, geofence.longitude);
+
+            if (distance <= geofence.radius) {
+                insideAnyGeofence = true;
+                if (!insideGeofence) {
+                    insideGeofence = true;
+                    const message = `You have entered the geofenced area at (${geofence.latitude}, ${geofence.longitude})! Please change your path.`;
+                    showNotification(message, true);
+                }
+            }
+        });
+
+        if (!insideAnyGeofence && insideGeofence) {
+            insideGeofence = false;
+            showNotification("You have left the geofenced area.", false);
+        }
+
+        if (!insideAnyGeofence) {
+            showNotification("You are outside all geofenced areas.", true);
+        }
+    }
+
+    function calculateDistance(lat1, lng1, lat2, lng2) {
+        const R = 6371000; // meters
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return R * c;
+    }
+
+    function showNotification(message, isInside) {
+        const notification = document.getElementById("notification");
+        notification.innerText = message;
+        notification.className = isInside ? 'inside' : 'outside';
+        notification.style.display = 'block';
+    }
+
+    function error(err) {
+        if (err.code === 1) {
+            alert("Please allow geolocation access");
+        } else {
+            alert("Cannot get current location");
+        }
+    }
+
+    function reroute() {
+        if (marker2) {
+            const routingOption = document.getElementById('route-options').value;
+            plotRoute([marker1.getLatLng(), marker2.getLatLng()], routingOption);
+        } else {
+            alert("No second user to reroute to.");
+        }
+    }
+
+    function simulateUser2() {
+        const lat2 = marker1.getLatLng().lat + 0.005;
+        const lng2 = marker1.getLatLng().lng + 0.005;
+        successUser2(lat2, lng2);
+    }
+
+    function successUser2(lat2, lng2) {
+        if (marker2) {
+            map.removeLayer(marker2);
+            map.removeLayer(circle2);
+        }
+
+        marker2 = L.marker([lat2, lng2]).addTo(map).bindPopup("Simulated User Location");
+        circle2 = L.circle([lat2, lng2], { radius: 500, color: "#1E90FF", fillColor: "#87CEFA", fillOpacity: 0.5 }).addTo(map);
+
+        plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
+
+        map.setView([lat2, lng2]);
+    }
+
+    const highCrimeAreas = [
+        { lat: 23.25, lng: 85.26 },
+        { lat: 23.30, lng: 85.30 },
+        { lat: 23.20, lng: 85.20 }
+    ];
+
+    function plotRoute(locations, routingOption) {
+        if (routeControl) {
+            map.removeControl(routeControl);
+        }
+
+        const routeOptions = {
+            waypoints: locations,
+            routeWhileDragging: false
+        };
+
+        let avoidingCrimeAreas = false;
+
+        if (routingOption === "no-highways") {
+            routeOptions.driving = L.Routing.driving({ avoid: ['highways'] });
+        } else if (routingOption === "no-tolls") {
+            routeOptions.driving = L.Routing.driving({ avoid: ['tolls'] });
+        } else if (routingOption === "no-crime") {
+            let avoidWaypoints = highCrimeAreas.map(area => L.latLng(area.lat, area.lng));
+            routeOptions.driving = L.Routing.driving({
+                waypoints: locations,
+                avoid: avoidWaypoints,
+                routeWhileDragging: false
+            });
+            avoidingCrimeAreas = true; // Set flag to true for notification
+        } else {
+            routeOptions.driving = L.Routing.driving();
+        }
+
+        if (avoidingCrimeAreas) {
+            showNotification("Note: This route avoids high-crime areas.", false);
+        }
+
+        routeControl = L.Routing.control(routeOptions).addTo(map);
+    }
+
+    function saveGeofences() {
+        const geofences = drawnItems.toGeoJSON();
+        console.log(geofences); // Prepare to send to your server
+    }
+
+    document.getElementById('incident-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+        const incidentType = document.getElementById('incident-type').value;
+        const incidentDescription = document.getElementById('incident-description').value;
+        const incidentLocation = incidentMarker ? incidentMarker.getLatLng() : 'Location not set';
+
+        console.log('Incident Report:', {
+            type: incidentType,
+            description: incidentDescription,
+            location: incidentLocation
+        });
+
+        showReportNotification('Thank you for your report! Your contribution helps keep the community safe.', true);
+        this.reset();
+        if (incidentMarker) {
+            map.removeLayer(incidentMarker);
+            incidentMarker = null;
+        }
+    });
+
+    function showReportNotification(message, isSuccess) {
+        const reportNotification = document.getElementById("report-notification");
+        reportNotification.innerText = message;
+        reportNotification.className = isSuccess ? 'success' : 'error';
+        reportNotification.style.display = 'block';
+
+        setTimeout(() => {
+            reportNotification.style.display = 'none';
+        }, 5000);
+    }
+
+    setInterval(simulateUser2, 5000);
+</script>
+
+</body>
+</html>
