@@ -101,15 +101,6 @@
             text-align: center;
             margin: 20px 0;
         }
-        #reports-list {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: #f9f9f9;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-            max-height: 300px;
-            overflow-y: auto;
-        }
     </style>
 </head>
 <body>
@@ -156,21 +147,26 @@
         </form>
         <div id="report-notification" style="display: none;"></div>
     </div>
-    
-    <div id="reports-list"></div> <!-- List of reported incidents -->
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.12.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.12.0/firebase-firestore.js"></script>
 <script>
-    // Firebase configuration
+    // Your Firebase configuration
     const firebaseConfig = {
-        // Your Firebase config here
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_STORAGE_BUCKET",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
     };
-    firebase.initializeApp(firebaseConfig);
+
+    // Initialize Firebase
+    const app = firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
     const geofences = [
@@ -224,124 +220,111 @@
     map.on(L.Draw.Event.CREATED, function (event) {
         const layer = event.layer;
         drawnItems.addLayer(layer);
+        const geoJson = layer.toGeoJSON();
+        console.log(geoJson);
     });
 
-    function successUser(position) {
-        const { latitude, longitude } = position.coords;
-        if (!insideGeofence) {
-            checkGeofence(latitude, longitude);
+    // Adding marker for user-reported incident location
+    map.on('click', function(e) {
+        // Move marker2 to the clicked location
+        if (marker2) {
+            map.removeLayer(marker2);
         }
-        if (!marker1) {
-            marker1 = L.marker([latitude, longitude]).addTo(map).bindPopup("You are here").openPopup();
+        marker2 = L.marker(e.latlng).addTo(map);
+    });
+
+    function reroute() {
+        if (routeControl) {
+            map.removeControl(routeControl);
+        }
+        const routingOptions = document.getElementById('route-options').value;
+        const userLocation = [23.25, 85.26]; // Use user location here
+
+        // Set route options based on user choice
+        let routeParams = {};
+        if (routingOptions === "no-highways") {
+            routeParams = { waypoints: [L.latLng(userLocation)], travelMode: 'DRIVING', avoid: ['highways'] };
+        } else if (routingOptions === "no-tolls") {
+            routeParams = { waypoints: [L.latLng(userLocation)], travelMode: 'DRIVING', avoid: ['tolls'] };
+        } else if (routingOptions === "no-crime") {
+            // Assuming no-crime routes would be computed through a specific function
+            routeParams = { waypoints: [L.latLng(userLocation)], travelMode: 'DRIVING' };
         } else {
-            marker1.setLatLng([latitude, longitude]);
+            routeParams = { waypoints: [L.latLng(userLocation)], travelMode: 'DRIVING' };
         }
+
+        routeControl = L.Routing.control({
+            waypoints: [
+                L.latLng(predefinedPath[0].lat, predefinedPath[0].lng),
+                L.latLng(predefinedPath[1].lat, predefinedPath[1].lng),
+                L.latLng(predefinedPath[2].lat, predefinedPath[2].lng)
+            ],
+            routeWhileDragging: true
+        }).addTo(map);
+    }
+
+    function successUser(position) {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+
+        if (!zoomed) {
+            map.setView([latitude, longitude], 13);
+            zoomed = true;
+        }
+
+        if (marker1) {
+            map.removeLayer(marker1);
+        }
+
+        marker1 = L.marker([latitude, longitude]).addTo(map);
+
+        // Check if inside any geofences
+        geofences.forEach(geofence => {
+            const distance = map.distance(
+                [latitude, longitude],
+                [geofence.latitude, geofence.longitude]
+            );
+
+            if (distance <= geofence.radius) {
+                insideGeofence = true;
+                showHotspotNotification();
+            }
+        });
+    }
+
+    function showHotspotNotification() {
+        const hotspotNotification = document.getElementById('hotspot-notification');
+        hotspotNotification.style.display = 'block';
+        hotspotNotification.innerText = 'You are entering a hotspot area!';
+        setTimeout(() => {
+            hotspotNotification.style.display = 'none';
+        }, 3000);
     }
 
     function error(err) {
         console.warn(`ERROR(${err.code}): ${err.message}`);
     }
 
-    function checkGeofence(lat, lng) {
-        geofences.forEach(geofence => {
-            const distance = getDistance(lat, lng, geofence.latitude, geofence.longitude);
-            if (distance <= geofence.radius) {
-                insideGeofence = true;
-                showHotspotNotification("You are entering a high-risk area!");
-                checkIncidents(lat, lng); // Check for incidents in this area
-            } else {
-                insideGeofence = false;
-            }
-        });
-    }
-
-    function showHotspotNotification(message) {
-        const notification = document.getElementById('hotspot-notification');
-        notification.innerText = message;
-        notification.style.display = 'block';
-        setTimeout(() => {
-            notification.style.display = 'none';
-        }, 5000);
-    }
-
-    function getDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371; // Radius of the Earth in km
-        const dLat = degreesToRadians(lat2 - lat1);
-        const dLon = degreesToRadians(lon2 - lon1);
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(degreesToRadians(lat1)) * Math.cos(degreesToRadians(lat2)) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c; // Distance in km
-    }
-
-    function degreesToRadians(degrees) {
-        return degrees * (Math.PI / 180);
-    }
-
-    function reroute() {
-        const routeOption = document.getElementById('route-options').value;
-        if (routeControl) {
-            map.removeControl(routeControl);
-        }
-        routeControl = L.Routing.control({
-            waypoints: predefinedPath.map(coord => L.latLng(coord.lat, coord.lng)),
-            routeWhileDragging: true,
-            createMarker: function() { return null; },
-            // Add options to avoid highways or tolls
-            router: L.Routing.mapbox('YOUR_MAPBOX_ACCESS_TOKEN', {
-                profile: routeOption === "no-highways" ? 'mapbox/cycling' : 'mapbox/driving',
-                accessToken: 'YOUR_MAPBOX_ACCESS_TOKEN' // Use your Mapbox access token
-            })
-        }).addTo(map);
-    }
-
     function saveGeofences() {
-        // Logic to save geofences (e.g., to Firestore)
-        alert("Geofences saved!");
-    }
-
-    function fetchIncidentReports() {
-        const reportsList = document.getElementById('reports-list');
-        reportsList.innerHTML = ''; // Clear the existing list
-
-        db.collection("incidentReports").orderBy("timestamp", "desc").get()
-        .then((querySnapshot) => {
-            querySnapshot.forEach((doc) => {
-                const report = doc.data();
-                const reportElement = document.createElement('div');
-                reportElement.innerHTML = `<strong>Type:</strong> ${report.type} <br>
-                                           <strong>Description:</strong> ${report.description} <br>
-                                           <strong>Location:</strong> ${report.location.latitude}, ${report.location.longitude} <br>
-                                           <strong>Connection ID:</strong> ${report.connectionId} <br>
-                                           <strong>Reported On:</strong> ${new Date(report.timestamp.seconds * 1000).toLocaleString()} <hr>`;
-                reportsList.appendChild(reportElement);
-            });
-        })
-        .catch((error) => {
-            console.error("Error fetching incident reports: ", error);
-        });
+        // Logic to save geofences to the database
+        console.log('Geofences saved!');
     }
 
     document.getElementById('incident-form').addEventListener('submit', function (event) {
         event.preventDefault();
         const incidentType = document.getElementById('incident-type').value;
         const incidentDescription = document.getElementById('incident-description').value;
-        const incidentLocation = marker2 ? marker2.getLatLng() : 'No location specified';
         const connectionId = document.getElementById('connection-id').value; // Get the connection ID
 
         // Save report to Firestore
         db.collection("incidentReports").add({
             type: incidentType,
             description: incidentDescription,
-            location: new firebase.firestore.GeoPoint(incidentLocation.lat, incidentLocation.lng),
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
             connectionId: connectionId // Include connection ID
         })
         .then(() => {
-            showReportNotification('Thank you for your report! Your input helps make the community safer.', true);
-            fetchIncidentReports(); // Refresh the incident reports list
+            showReportNotification('Thank you for your report!', true);
         })
         .catch((error) => {
             showReportNotification('Error submitting report. Please try again.', false);
@@ -349,23 +332,17 @@
         });
 
         this.reset();
-        if (marker2) {
-            map.removeLayer(marker2);
-            marker2 = null;
-        }
     });
 
     function showReportNotification(message, isSuccess) {
-        const notification = document.getElementById('report-notification');
-        notification.innerText = message;
-        notification.className = isSuccess ? 'notification success' : 'notification error';
-        notification.style.display = 'block';
+        const reportNotification = document.getElementById('report-notification');
+        reportNotification.style.display = 'block';
+        reportNotification.innerText = message;
+        reportNotification.className = isSuccess ? 'success notification' : 'error notification';
         setTimeout(() => {
-            notification.style.display = 'none';
-        }, 5000);
+            reportNotification.style.display = 'none';
+        }, 3000);
     }
-
-    fetchIncidentReports(); // Initial fetch of incident reports
 </script>
 </body>
 </html>
