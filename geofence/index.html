@@ -3,11 +3,137 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geofencing Checker</title>
+    <title>Geofencing Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            border-radius: 10px;
+            background-color: #ffffff;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        #start-tracking {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #start-tracking:hover {
+            background-color: #218838;
+        }
+        #notification {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            color: #fff;
+            display: none; /* Initially hidden */
+        }
+        .inside {
+            background-color: #17a2b8;
+        }
+        .outside {
+            background-color: #dc3545;
+        }
+    </style>
 </head>
 <body>
-    <button id="check-location">Check Location</button>
-    <div id="notification"></div>
-    <script src="script.js"></script>
+    <div class="container">
+        <h1>Geofencing Tracker</h1>
+        <button id="start-tracking">Start Location Tracking</button>
+        <div id="notification"></div>
+    </div>
+    <script>
+        const geofences = [
+            { latitude: 23.25, longitude: 85.26, radius: 1000 }, // Geofence 1
+            { latitude: 23.30, longitude: 85.30, radius: 500 },  // Geofence 2
+            { latitude: 23.20, longitude: 85.20, radius: 2000 }  // Geofence 3
+        ];
+
+        let watchId;
+        let insideGeofence = false;
+
+        document.getElementById("start-tracking").addEventListener("click", startTracking);
+
+        function startTracking() {
+            if (navigator.geolocation) {
+                watchId = navigator.geolocation.watchPosition(checkGeofences, handleError, {
+                    enableHighAccuracy: true,
+                    maximumAge: 30000,
+                    timeout: 5000
+                });
+                showNotification("Location tracking started.", true);
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        }
+
+        function checkGeofences(position) {
+            const userLat = position.coords.latitude;
+            const userLng = position.coords.longitude;
+            let insideAnyGeofence = false;
+
+            geofences.forEach((geofence) => {
+                const distance = calculateDistance(userLat, userLng, geofence.latitude, geofence.longitude);
+                
+                if (distance <= geofence.radius) {
+                    insideAnyGeofence = true;
+                    if (!insideGeofence) {
+                        insideGeofence = true;
+                        const message = `You have entered the geofenced area at (${geofence.latitude}, ${geofence.longitude})!`;
+                        showNotification(message, true);
+                    }
+                }
+            });
+
+            if (!insideAnyGeofence && insideGeofence) {
+                insideGeofence = false; // Update the flag when leaving
+                showNotification("You have left the geofenced area.", false);
+            }
+
+            if (!insideAnyGeofence) {
+                showNotification("You are outside all geofenced areas.", false);
+            }
+        }
+
+        function calculateDistance(lat1, lng1, lat2, lng2) {
+            const R = 6371000; // Radius of the Earth in meters
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+            return R * c; // Distance in meters
+        }
+
+        function handleError(error) {
+            console.error("Error getting location: ", error);
+            showNotification("Error getting your location. Please check your settings.", false);
+        }
+
+        function showNotification(message, isInside) {
+            const notification = document.getElementById("notification");
+            notification.innerText = message;
+            notification.className = isInside ? 'inside' : 'outside';
+            notification.style.display = 'block'; // Show the notification
+        }
+    </script>
 </body>
 </html>
