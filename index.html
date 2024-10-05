@@ -3,22 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geolocation with 500m Zone</title>
+    <title>User Locations with Shortest Route</title>
+
+    <!-- Google Font (Roboto) -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
+
     <style>
-        #map { height: 350px; width: 100%; }
+        /* Global Styles */
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f4f7fc;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        #map-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        #map {
+            height: 500px;
+            width: 80%;
+            border: 3px solid #4CAF50;
+            border-radius: 10px;
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Button Styling */
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: #45a049;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            #map {
+                width: 95%;
+                height: 400px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            header {
+                font-size: 20px;
+            }
+
+            #map {
+                height: 300px;
+            }
+
+            .btn {
+                font-size: 14px;
+                padding: 8px 16px;
+            }
+        }
     </style>
 </head>
 <body>
 
-    <h2>Your Location with 500m Zone</h2>
-    <div id="map"></div>
+    <header>
+        Real-Time Location & Shortest Route Finder
+    </header>
+
+    <div id="map-container">
+        <div id="map"></div>
+
+        <div id="controls">
+            <button class="btn" onclick="reroute()">Find Shortest Route</button>
+        </div>
+    </div>
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
+    
+    <!-- Leaflet Routing Machine -->
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 
-    <!-- Your custom script -->
+    <!-- Custom Script -->
     <script>
         const options = {
             enableHighAccuracy: true,
@@ -26,37 +119,81 @@
             maximumAge: 2000
         };
 
-        const map = L.map('map');
-        map.setView([51.505, -0.09], 13); 
+        const map = L.map('map').setView([51.505, -0.09], 13); 
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        let marker, circle, zoomed;
+        let marker1, circle1, marker2, circle2, routeControl, zoomed;
 
-        navigator.geolocation.watchPosition(success, error, options);
+        // Track first user's location
+        navigator.geolocation.watchPosition(successUser1, error, options);
 
-        function success(pos) {
-            const lat = pos.coords.latitude;
-            const lng = pos.coords.longitude;
+        function successUser1(pos) {
+            const lat1 = pos.coords.latitude;
+            const lng1 = pos.coords.longitude;
 
-            if (marker) {
-                map.removeLayer(marker);
-                map.removeLayer(circle);
+            if (marker1) {
+                map.removeLayer(marker1);
+                map.removeLayer(circle1);
             }
 
-            // Add marker at user's location
-            marker = L.marker([lat, lng]).addTo(map);
-            // Create a 500m radius zone around the user
-            circle = L.circle([lat, lng], { radius: 500 }).addTo(map);
+            // Add marker and circle for User 1
+            marker1 = L.marker([lat1, lng1], {icon: userIcon("User 1")}).addTo(map).bindPopup("User 1 Location");
+            circle1 = L.circle([lat1, lng1], { radius: 500, color: "#FF5733", fillColor: "#FFC300", fillOpacity: 0.5 }).addTo(map);
+
+            // Simulate a second user's location (use actual coordinates if available)
+            const lat2 = lat1 + 0.005; // Adjusted latitude for second user
+            const lng2 = lng1 + 0.005; // Adjusted longitude for second user
+            successUser2(lat2, lng2);
 
             if (!zoomed) {
-                zoomed = map.fitBounds(circle.getBounds());
+                zoomed = map.fitBounds(circle1.getBounds());
             }
 
-            // Set map focus to user's current position
-            map.setView([lat, lng]);
+            map.setView([lat1, lng1]);
+        }
+
+        // Handle second user (simulated or real data)
+        function successUser2(lat2, lng2) {
+            if (marker2) {
+                map.removeLayer(marker2);
+                map.removeLayer(circle2);
+            }
+
+            // Add marker and circle for User 2
+            marker2 = L.marker([lat2, lng2], {icon: userIcon("User 2")}).addTo(map).bindPopup("User 2 Location");
+            circle2 = L.circle([lat2, lng2], { radius: 500, color: "#1E90FF", fillColor: "#87CEFA", fillOpacity: 0.5 }).addTo(map);
+
+            // Plot the shortest route between User 1 and User 2
+            plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
+
+            map.setView([lat2, lng2]);
+        }
+
+        // Create a custom icon for users
+        function userIcon(label) {
+            return L.divIcon({
+                className: 'custom-icon',
+                html: `<div style="background-color:#fff;border:1px solid #000;border-radius:50%;padding:10px;text-align:center;">${label}</div>`,
+                iconSize: [50, 50]
+            });
+        }
+
+        // Plot the shortest route between two points
+        function plotRoute(locations) {
+            if (routeControl) {
+                map.removeControl(routeControl);
+            }
+            routeControl = L.Routing.control({
+                waypoints: locations,
+                routeWhileDragging: false
+            }).addTo(map);
+        }
+
+        function reroute() {
+            plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
         }
 
         function error(err) {
