@@ -103,6 +103,18 @@
             text-align: center;
             margin: 20px 0;
         }
+        #incident-reports {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #4CAF50;
+            border-radius: 5px;
+            background-color: #ffffff;
+            width: 80%;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        #reports-list {
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -147,6 +159,12 @@
             <button type="submit" class="btn">Submit Report</button>
         </form>
         <div id="report-notification" style="display: none;"></div>
+    </div>
+
+    <!-- New section for displaying incident reports -->
+    <div id="incident-reports">
+        <h3>Reported Incidents</h3>
+        <div id="reports-list"></div>
     </div>
 </div>
 
@@ -206,26 +224,12 @@
 
     navigator.geolocation.watchPosition(successUser, error, options);
 
-    // Draw geofences on map
-    geofences.forEach(geofence => {
-        L.circle([geofence.latitude, geofence.longitude], {
-            radius: geofence.radius,
-            color: "red",
-            fillColor: "#8B0000",
-            fillOpacity: 0.5
-        }).addTo(map);
+    map.on('draw:created', function (e) {
+        drawnItems.addLayer(e.layer);
     });
 
-    map.on(L.Draw.Event.CREATED, function (event) {
-        const layer = event.layer;
-        drawnItems.addLayer(layer);
-        const geoJson = layer.toGeoJSON();
-        console.log(geoJson);
-    });
-
-    // Adding marker for user-reported incident location
-    map.on('click', function(e) {
-        // Move marker2 to the clicked position
+    map.on('click', function (e) {
+        // Create or update marker2 based on clicked position
         if (marker2) {
             marker2.setLatLng(e.latlng);
         } else {
@@ -264,6 +268,9 @@
         if (marker2) {
             plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
         }
+        
+        // Fetch and display incident reports
+        fetchIncidentReports();
     }
 
     function checkGeofences(userLat, userLng) {
@@ -391,6 +398,7 @@
         })
         .then(() => {
             showReportNotification('Thank you for your report! Your input helps make the community safer.', true);
+            fetchIncidentReports(); // Refresh the incident reports list
         })
         .catch((error) => {
             showReportNotification('Error submitting report. Please try again.', false);
@@ -413,6 +421,27 @@
         setTimeout(() => {
             reportNotification.style.display = 'none';
         }, 5000);
+    }
+
+    function fetchIncidentReports() {
+        const reportsList = document.getElementById('reports-list');
+        reportsList.innerHTML = ''; // Clear the existing list
+
+        db.collection("incidentReports").orderBy("timestamp", "desc").get()
+        .then((querySnapshot) => {
+            querySnapshot.forEach((doc) => {
+                const report = doc.data();
+                const reportElement = document.createElement('div');
+                reportElement.innerHTML = `<strong>Type:</strong> ${report.type} <br>
+                                           <strong>Description:</strong> ${report.description} <br>
+                                           <strong>Location:</strong> ${report.location.latitude}, ${report.location.longitude} <br>
+                                           <strong>Reported On:</strong> ${new Date(report.timestamp.seconds * 1000).toLocaleString()} <hr>`;
+                reportsList.appendChild(reportElement);
+            });
+        })
+        .catch((error) => {
+            console.error("Error fetching incident reports: ", error);
+        });
     }
 </script>
 
