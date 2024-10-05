@@ -3,137 +3,418 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geofencing Tracker</title>
+    <title>User Locations with Geofencing & Shortest Route</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f9;
+            font-family: 'Roboto', sans-serif;
+            background: url('https://example.com/professional-background.jpg') no-repeat center center fixed;
+            background-size: cover;
             margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            border-radius: 10px;
-            background-color: #ffffff;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        h1 {
-            text-align: center;
+            padding: 0;
             color: #333;
         }
-        #start-tracking {
-            width: 100%;
-            padding: 10px;
-            font-size: 16px;
-            background-color: #28a745;
+        header {
+            background-color: rgba(76, 175, 80, 0.9);
             color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 700;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        #map-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        #map {
+            height: 500px;
+            width: 80%;
+            border: 3px solid #4CAF50;
+            border-radius: 10px;
+            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        #controls, #routing-options {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
             border: none;
             border-radius: 5px;
+            font-size: 16px;
             cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+            margin: 0 10px;
         }
-        #start-tracking:hover {
-            background-color: #218838;
+        .btn:hover {
+            background-color: #45a049;
+            transform: scale(1.05);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
         }
-        #notification {
+        #reporting-container {
             margin-top: 20px;
             padding: 15px;
+            border: 1px solid #4CAF50;
+            border-radius: 5px;
+            background-color: #ffffff;
+            width: 80%;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        #report-notification {
+            margin-top: 10px;
+            padding: 10px;
             border-radius: 5px;
             color: #fff;
-            display: none; /* Initially hidden */
         }
-        .inside {
-            background-color: #dc3545; /* Red for inside */
+        .success {
+            background-color: #28a745; /* Green */
         }
-        .outside {
-            background-color: #28a745; /* Green for outside */
+        .error {
+            background-color: #dc3545; /* Red */
+        }
+        .notification {
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            transition: opacity 0.5s;
+        }
+        #hotspot-notification {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #ffcc00; /* Yellow */
+            border-radius: 5px;
+            display: none; /* Hidden by default */
+        }
+        .loading-spinner {
+            display: none; /* Hidden by default */
+            text-align: center;
+            margin: 20px 0;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Geofencing Tracker</h1>
-        <button id="start-tracking">Start Location Tracking</button>
-        <div id="notification"></div>
+
+<header>
+    Real-Time Location & Geofencing Tracker
+</header>
+
+<div id="map-container">
+    <div id="map"></div>
+    <div class="loading-spinner" id="loading-spinner">
+        <i class="fas fa-spinner fa-spin"></i> Loading route...
     </div>
-    <script>
-        const geofences = [
-            { latitude: 23.25, longitude: 85.26, radius: 1000 }, // Geofence 1
-            { latitude: 23.30, longitude: 85.30, radius: 500 },  // Geofence 2
-            { latitude: 23.20, longitude: 85.20, radius: 2000 }  // Geofence 3
-        ];
+    <div id="controls">
+        <button class="btn" onclick="reroute()">Find Shortest Route</button>
+        <button class="btn" onclick="saveGeofences()">Save Geofences</button>
+    </div>
+    <div id="routing-options">
+        <label for="route-options">Routing Options:</label>
+        <select id="route-options">
+            <option value="">Select an option</option>
+            <option value="no-highways">Avoid Highways</option>
+            <option value="no-tolls">Avoid Tolls</option>
+            <option value="no-crime">Avoid High-Crime Areas</option>
+        </select>
+    </div>
+    <div id="notification" class="notification"></div>
+    <div id="hotspot-notification"></div> <!-- Hotspot notification here -->
 
-        let watchId;
-        let insideGeofence = false;
+    <div id="reporting-container">
+        <h3>Report an Incident</h3>
+        <form id="incident-form">
+            <label for="incident-type">Type of Incident:</label>
+            <select id="incident-type" required>
+                <option value="suspicious_activity">Suspicious Activity</option>
+                <option value="theft">Theft</option>
+                <option value="vandalism">Vandalism</option>
+                <option value="other">Other</option>
+            </select>
+            <label for="incident-description">Description:</label>
+            <textarea id="incident-description" required></textarea>
+            <button type="submit" class="btn">Submit Report</button>
+        </form>
+        <div id="report-notification" style="display: none;"></div>
+    </div>
+</div>
 
-        document.getElementById("start-tracking").addEventListener("click", startTracking);
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+<script>
+    // Firebase configuration
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_STORAGE_BUCKET",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
 
-        function startTracking() {
-            if (navigator.geolocation) {
-                watchId = navigator.geolocation.watchPosition(checkGeofences, handleError, {
-                    enableHighAccuracy: true,
-                    maximumAge: 30000,
-                    timeout: 5000
-                });
-                showNotification("Location tracking started.", false);
-            } else {
-                alert("Geolocation is not supported by this browser.");
-            }
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const geofences = [
+        { latitude: 23.25, longitude: 85.26, radius: 800 }, 
+        { latitude: 23.30, longitude: 85.30, radius: 600 }, 
+        { latitude: 23.20, longitude: 85.20, radius: 500 }   
+    ];
+
+    const predefinedPath = [
+        { lat: 23.25, lng: 85.26 },
+        { lat: 23.30, lng: 85.30 },
+        { lat: 23.20, lng: 85.20 }
+    ];
+
+    const options = {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 2000
+    };
+
+    const map = L.map('map').setView([23.418674, 85.435309], 13);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    let marker1, circle1, marker2, circle2, routeControl, zoomed;
+    let insideGeofence = false;
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    const drawControl = new L.Control.Draw({
+        edit: {
+            featureGroup: drawnItems
+        }
+    });
+    map.addControl(drawControl);
+
+    navigator.geolocation.watchPosition(successUser, error, options);
+
+    // Draw geofences on map
+    geofences.forEach(geofence => {
+        L.circle([geofence.latitude, geofence.longitude], {
+            radius: geofence.radius,
+            color: "red",
+            fillColor: "#8B0000",
+            fillOpacity: 0.5
+        }).addTo(map);
+    });
+
+    map.on(L.Draw.Event.CREATED, function (event) {
+        const layer = event.layer;
+        drawnItems.addLayer(layer);
+        const geoJson = layer.toGeoJSON();
+        console.log(geoJson);
+    });
+
+    // Adding marker for user-reported incident location
+    map.on('click', function(e) {
+        // Move marker2 to the clicked position
+        if (marker2) {
+            marker2.setLatLng(e.latlng);
+        } else {
+            // If marker2 doesn't exist, create it
+            marker2 = L.marker(e.latlng).addTo(map).bindPopup("Destination Location").openPopup();
+        }
+        
+        // Update the route if marker1 exists
+        if (marker1) {
+            plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
+        }
+    });
+
+    function successUser(pos) {
+        const lat1 = pos.coords.latitude;
+        const lng1 = pos.coords.longitude;
+
+        if (marker1) {
+            map.removeLayer(marker1);
+            map.removeLayer(circle1);
         }
 
-        function checkGeofences(position) {
-            const userLat = position.coords.latitude;
-            const userLng = position.coords.longitude;
-            let insideAnyGeofence = false;
+        marker1 = L.marker([lat1, lng1]).addTo(map).bindPopup("Your Location");
+        circle1 = L.circle([lat1, lng1], { radius: 500, color: "#FF5733", fillColor: "#FFC300", fillOpacity: 0.5 }).addTo(map);
 
-            geofences.forEach((geofence) => {
-                const distance = calculateDistance(userLat, userLng, geofence.latitude, geofence.longitude);
-                
-                if (distance <= geofence.radius) {
-                    insideAnyGeofence = true;
-                    if (!insideGeofence) {
-                        insideGeofence = true;
-                        const message = `You have entered the geofenced area at (${geofence.latitude}, ${geofence.longitude})!Please change your path`;
-                        showNotification(message, true);
-                    }
+        checkGeofences(lat1, lng1);
+        checkProximityToPath(lat1, lng1);
+
+        if (!zoomed) {
+            zoomed = map.fitBounds(circle1.getBounds());
+        }
+
+        map.setView([lat1, lng1]);
+
+        // Update the route whenever the user position changes
+        if (marker2) {
+            plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
+        }
+    }
+
+    function checkGeofences(userLat, userLng) {
+        let insideAnyGeofence = false;
+
+        geofences.forEach((geofence) => {
+            const distance = calculateDistance(userLat, userLng, geofence.latitude, geofence.longitude);
+
+            if (distance <= geofence.radius) {
+                insideAnyGeofence = true;
+                if (!insideGeofence) {
+                    insideGeofence = true;
+                    const message = `Alert! You have entered a geofenced area (${geofence.latitude}, ${geofence.longitude}). Please consider changing your path for safety.`;
+                    showNotification(message, true);
                 }
-            });
-
-            if (!insideAnyGeofence && insideGeofence) {
-                insideGeofence = false; // Update the flag when leaving
-                showNotification("You have left the geofenced area.", false);
             }
+        });
 
-            if (!insideAnyGeofence) {
-                showNotification("You are outside all geofenced areas.", true);
+        if (!insideAnyGeofence && insideGeofence) {
+            insideGeofence = false;
+            showNotification("You have left the geofenced area.", false);
+        }
+
+        if (!insideAnyGeofence) {
+            showNotification("You are outside all geofenced areas.", true);
+        }
+    }
+
+    function checkProximityToPath(userLat, userLng) {
+        const hotspotNotification = document.getElementById("hotspot-notification");
+        let approachingHotspot = false;
+
+        predefinedPath.forEach(point => {
+            const distance = calculateDistance(userLat, userLng, point.lat, point.lng);
+            if (distance < 200) { 
+                approachingHotspot = true;
             }
+        });
+
+        if (approachingHotspot) {
+            hotspotNotification.style.display = 'block';
+            hotspotNotification.innerText = 'You are approaching a hotspot, please consider changing your path.';
+        } else {
+            hotspotNotification.style.display = 'none'; // Hide notification when not approaching
+        }
+    }
+
+    function calculateDistance(lat1, lng1, lat2, lng2) {
+        const R = 6371000; // meters
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return R * c;
+    }
+
+    function showNotification(message, isInside) {
+        const notification = document.getElementById("notification");
+        notification.innerText = message;
+        notification.className = isInside ? 'notification success' : 'notification error';
+        notification.style.display = 'block';
+    }
+
+    function error(err) {
+        if (err.code === 1) {
+            alert("Geolocation access is required for this feature. Please enable location access.");
+        } else {
+            alert("Unable to retrieve your location.");
+        }
+    }
+
+    function plotRoute(locations) {
+        const loadingSpinner = document.getElementById('loading-spinner');
+        loadingSpinner.style.display = 'block'; // Show loading spinner
+
+        if (routeControl) {
+            map.removeControl(routeControl);
         }
 
-        function calculateDistance(lat1, lng1, lat2, lng2) {
-            const R = 6371000; // Radius of the Earth in meters
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLng = (lng2 - lng1) * Math.PI / 180;
+        // Get selected routing option
+        const selectedOption = document.getElementById('route-options').value;
+        const routingOptions = {
+            waypoints: locations,
+            routeWhileDragging: false,
+        };
 
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLng / 2) * Math.sin(dLng / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-            return R * c; // Distance in meters
+        // Implement logic for routing options
+        if (selectedOption === "no-highways") {
+            // Example: Adjust to avoid highways (specific implementation depends on the routing library)
+        } else if (selectedOption === "no-tolls") {
+            // Example: Adjust to avoid tolls
+        } else if (selectedOption === "no-crime") {
+            // Example: Adjust to avoid high-crime areas
         }
 
-        function handleError(error) {
-            console.error("Error getting location: ", error);
-            showNotification("Error getting your location. Please check your settings.", false);
-        }
+        routeControl = L.Routing.control(routingOptions).addTo(map);
 
-        function showNotification(message, isInside) {
-            const notification = document.getElementById("notification");
-            notification.innerText = message;
-            notification.className = isInside ? 'inside' : 'outside';
-            notification.style.display = 'block'; // Show the notification
+        routeControl.on('routesfound', function() {
+            loadingSpinner.style.display = 'none'; // Hide loading spinner when route found
+        });
+    }
+
+    function saveGeofences() {
+        const geofences = drawnItems.toGeoJSON();
+        console.log(geofences); // Prepare to send to your server
+    }
+
+    // Incident report form submission
+    document.getElementById('incident-form').addEventListener('submit', function (event) {
+        event.preventDefault();
+        const incidentType = document.getElementById('incident-type').value;
+        const incidentDescription = document.getElementById('incident-description').value;
+        const incidentLocation = marker2 ? marker2.getLatLng() : 'No location specified';
+
+        // Save report to Firestore
+        db.collection("incidentReports").add({
+            type: incidentType,
+            description: incidentDescription,
+            location: new firebase.firestore.GeoPoint(incidentLocation.lat, incidentLocation.lng),
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        })
+        .then(() => {
+            showReportNotification('Thank you for your report! Your input helps make the community safer.', true);
+        })
+        .catch((error) => {
+            showReportNotification('Error submitting report. Please try again.', false);
+            console.error("Error adding document: ", error);
+        });
+
+        this.reset();
+        if (marker2) {
+            map.removeLayer(marker2);
+            marker2 = null;
         }
-    </script>
+    });
+
+    function showReportNotification(message, isSuccess) {
+        const reportNotification = document.getElementById("report-notification");
+        reportNotification.innerText = message;
+        reportNotification.className = isSuccess ? 'success' : 'error';
+        reportNotification.style.display = 'block';
+
+        setTimeout(() => {
+            reportNotification.style.display = 'none';
+        }, 5000);
+    }
+</script>
+
 </body>
 </html>
