@@ -101,6 +101,19 @@
             text-align: center;
             margin: 20px 0;
         }
+        #reports-container {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #4CAF50;
+            border-radius: 5px;
+            background-color: #ffffff;
+            width: 80%;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        .report {
+            border-bottom: 1px solid #ddd;
+            padding: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -146,6 +159,12 @@
             <button type="submit" class="btn">Submit Report</button>
         </form>
         <div id="report-notification" style="display: none;"></div>
+    </div>
+
+    <!-- Reports Display Section -->
+    <div id="reports-container">
+        <h3>Reported Incidents</h3>
+        <div id="reports-list"></div>
     </div>
 </div>
 
@@ -203,30 +222,15 @@
             featureGroup: drawnItems
         }
     });
+
     map.addControl(drawControl);
 
-    navigator.geolocation.watchPosition(successUser, error, options);
-
-    // Draw geofences on map
-    geofences.forEach(geofence => {
-        L.circle([geofence.latitude, geofence.longitude], {
-            radius: geofence.radius,
-            color: "red",
-            fillColor: "#8B0000",
-            fillOpacity: 0.5
-        }).addTo(map);
-    });
-
-    map.on(L.Draw.Event.CREATED, function (event) {
+    map.on('draw:created', function (event) {
         const layer = event.layer;
         drawnItems.addLayer(layer);
-        const geoJson = layer.toGeoJSON();
-        console.log(geoJson);
     });
 
-    // Adding marker for user-reported incident location
-    map.on('click', function(e) {
-        // Move marker2 to the clicked location
+    map.on('click', function (e) {
         if (marker2) {
             map.removeLayer(marker2);
         }
@@ -240,14 +244,12 @@
         const routingOptions = document.getElementById('route-options').value;
         const userLocation = [23.25, 85.26]; // Use user location here
 
-        // Set route options based on user choice
         let routeParams = {};
         if (routingOptions === "no-highways") {
             routeParams = { waypoints: [L.latLng(userLocation)], travelMode: 'DRIVING', avoid: ['highways'] };
         } else if (routingOptions === "no-tolls") {
             routeParams = { waypoints: [L.latLng(userLocation)], travelMode: 'DRIVING', avoid: ['tolls'] };
         } else if (routingOptions === "no-crime") {
-            // Assuming no-crime routes would be computed through a specific function
             routeParams = { waypoints: [L.latLng(userLocation)], travelMode: 'DRIVING' };
         } else {
             routeParams = { waypoints: [L.latLng(userLocation)], travelMode: 'DRIVING' };
@@ -278,7 +280,6 @@
 
         marker1 = L.marker([latitude, longitude]).addTo(map);
 
-        // Check if inside any geofences
         geofences.forEach(geofence => {
             const distance = map.distance(
                 [latitude, longitude],
@@ -306,7 +307,6 @@
     }
 
     function saveGeofences() {
-        // Logic to save geofences to the database
         console.log('Geofences saved!');
     }
 
@@ -314,17 +314,17 @@
         event.preventDefault();
         const incidentType = document.getElementById('incident-type').value;
         const incidentDescription = document.getElementById('incident-description').value;
-        const connectionId = document.getElementById('connection-id').value; // Get the connection ID
+        const connectionId = document.getElementById('connection-id').value;
 
-        // Save report to Firestore
         db.collection("incidentReports").add({
             type: incidentType,
             description: incidentDescription,
             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            connectionId: connectionId // Include connection ID
+            connectionId: connectionId
         })
         .then(() => {
             showReportNotification('Thank you for your report!', true);
+            fetchReports(); // Fetch reports after submitting
         })
         .catch((error) => {
             showReportNotification('Error submitting report. Please try again.', false);
@@ -343,6 +343,26 @@
             reportNotification.style.display = 'none';
         }, 3000);
     }
+
+    // Fetching incident reports from Firestore
+    function fetchReports() {
+        const reportsList = document.getElementById('reports-list');
+        reportsList.innerHTML = ''; // Clear existing reports
+        db.collection("incidentReports").orderBy("timestamp", "desc").onSnapshot(snapshot => {
+            snapshot.forEach(doc => {
+                const report = doc.data();
+                const reportElement = document.createElement('div');
+                reportElement.classList.add('report');
+                reportElement.innerHTML = `<strong>${report.type}</strong>: ${report.description} <br><small>${new Date(report.timestamp.toDate()).toLocaleString()}</small>`;
+                reportsList.appendChild(reportElement);
+            });
+        });
+    }
+
+    // Fetch reports on page load
+    fetchReports();
+
+    navigator.geolocation.getCurrentPosition(successUser, error, options);
 </script>
 </body>
 </html>
