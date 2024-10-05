@@ -9,8 +9,6 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
 
     <style>
         body {
@@ -103,17 +101,14 @@
             text-align: center;
             margin: 20px 0;
         }
-        #incident-reports {
-            margin-top: 20px;
-            padding: 15px;
-            border: 1px solid #4CAF50;
-            border-radius: 5px;
-            background-color: #ffffff;
-            width: 80%;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-        }
         #reports-list {
-            margin-top: 10px;
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            max-height: 300px;
+            overflow-y: auto;
         }
     </style>
 </head>
@@ -156,33 +151,25 @@
             </select>
             <label for="incident-description">Description:</label>
             <textarea id="incident-description" required></textarea>
+            <input type="hidden" id="connection-id" value="YOUR_CONNECTION_ID"> <!-- Connection ID here -->
             <button type="submit" class="btn">Submit Report</button>
         </form>
         <div id="report-notification" style="display: none;"></div>
     </div>
-
-    <!-- New section for displaying incident reports -->
-    <div id="incident-reports">
-        <h3>Reported Incidents</h3>
-        <div id="reports-list"></div>
-    </div>
+    
+    <div id="reports-list"></div> <!-- List of reported incidents -->
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js"></script>
 <script>
     // Firebase configuration
     const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_AUTH_DOMAIN",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_STORAGE_BUCKET",
-        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-        appId: "YOUR_APP_ID"
+        // Your Firebase config here
     };
-
-    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
@@ -224,177 +211,133 @@
 
     navigator.geolocation.watchPosition(successUser, error, options);
 
-    map.on('draw:created', function (e) {
-        drawnItems.addLayer(e.layer);
+    // Draw geofences on map
+    geofences.forEach(geofence => {
+        L.circle([geofence.latitude, geofence.longitude], {
+            radius: geofence.radius,
+            color: "red",
+            fillColor: "#8B0000",
+            fillOpacity: 0.5
+        }).addTo(map);
     });
 
-    map.on('click', function (e) {
-        // Create or update marker2 based on clicked position
-        if (marker2) {
-            marker2.setLatLng(e.latlng);
-        } else {
-            // If marker2 doesn't exist, create it
-            marker2 = L.marker(e.latlng).addTo(map).bindPopup("Destination Location").openPopup();
-        }
-        
-        // Update the route if marker1 exists
-        if (marker1) {
-            plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
-        }
+    map.on(L.Draw.Event.CREATED, function (event) {
+        const layer = event.layer;
+        drawnItems.addLayer(layer);
     });
 
-    function successUser(pos) {
-        const lat1 = pos.coords.latitude;
-        const lng1 = pos.coords.longitude;
-
-        if (marker1) {
-            map.removeLayer(marker1);
-            map.removeLayer(circle1);
+    function successUser(position) {
+        const { latitude, longitude } = position.coords;
+        if (!insideGeofence) {
+            checkGeofence(latitude, longitude);
         }
-
-        marker1 = L.marker([lat1, lng1]).addTo(map).bindPopup("Your Location");
-        circle1 = L.circle([lat1, lng1], { radius: 500, color: "#FF5733", fillColor: "#FFC300", fillOpacity: 0.5 }).addTo(map);
-
-        checkGeofences(lat1, lng1);
-        checkProximityToPath(lat1, lng1);
-
-        if (!zoomed) {
-            zoomed = map.fitBounds(circle1.getBounds());
-        }
-
-        map.setView([lat1, lng1]);
-
-        // Update the route whenever the user position changes
-        if (marker2) {
-            plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
-        }
-        
-        // Fetch and display incident reports
-        fetchIncidentReports();
-    }
-
-    function checkGeofences(userLat, userLng) {
-        let insideAnyGeofence = false;
-
-        geofences.forEach((geofence) => {
-            const distance = calculateDistance(userLat, userLng, geofence.latitude, geofence.longitude);
-
-            if (distance <= geofence.radius) {
-                insideAnyGeofence = true;
-                if (!insideGeofence) {
-                    insideGeofence = true;
-                    const message = `Alert! You have entered a geofenced area (${geofence.latitude}, ${geofence.longitude}). Please consider changing your path for safety.`;
-                    showNotification(message, true);
-                }
-            }
-        });
-
-        if (!insideAnyGeofence && insideGeofence) {
-            insideGeofence = false;
-            showNotification("You have left the geofenced area.", false);
-        }
-
-        if (!insideAnyGeofence) {
-            showNotification("You are outside all geofenced areas.", true);
-        }
-    }
-
-    function checkProximityToPath(userLat, userLng) {
-        const hotspotNotification = document.getElementById("hotspot-notification");
-        let approachingHotspot = false;
-
-        predefinedPath.forEach(point => {
-            const distance = calculateDistance(userLat, userLng, point.lat, point.lng);
-            if (distance < 200) { 
-                approachingHotspot = true;
-            }
-        });
-
-        if (approachingHotspot) {
-            hotspotNotification.style.display = 'block';
-            hotspotNotification.innerText = 'You are approaching a hotspot, please consider changing your path.';
+        if (!marker1) {
+            marker1 = L.marker([latitude, longitude]).addTo(map).bindPopup("You are here").openPopup();
         } else {
-            hotspotNotification.style.display = 'none'; // Hide notification when not approaching
+            marker1.setLatLng([latitude, longitude]);
         }
-    }
-
-    function calculateDistance(lat1, lng1, lat2, lng2) {
-        const R = 6371000; // meters
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLng = (lng2 - lng1) * Math.PI / 180;
-
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-        return R * c;
-    }
-
-    function showNotification(message, isInside) {
-        const notification = document.getElementById("notification");
-        notification.innerText = message;
-        notification.className = isInside ? 'notification success' : 'notification error';
-        notification.style.display = 'block';
     }
 
     function error(err) {
-        if (err.code === 1) {
-            alert("Geolocation access is required for this feature. Please enable location access.");
-        } else {
-            alert("Unable to retrieve your location.");
-        }
+        console.warn(`ERROR(${err.code}): ${err.message}`);
     }
 
-    function plotRoute(locations) {
-        const loadingSpinner = document.getElementById('loading-spinner');
-        loadingSpinner.style.display = 'block'; // Show loading spinner
-
-        if (routeControl) {
-            map.removeControl(routeControl);
-        }
-
-        // Get selected routing option
-        const selectedOption = document.getElementById('route-options').value;
-        const routingOptions = {
-            waypoints: locations,
-            routeWhileDragging: false,
-        };
-
-        // Implement logic for routing options
-        if (selectedOption === "no-highways") {
-            // Example: Adjust to avoid highways (specific implementation depends on the routing library)
-        } else if (selectedOption === "no-tolls") {
-            // Example: Adjust to avoid tolls
-        } else if (selectedOption === "no-crime") {
-            // Example: Adjust to avoid high-crime areas
-        }
-
-        routeControl = L.Routing.control(routingOptions).addTo(map);
-
-        routeControl.on('routesfound', function() {
-            loadingSpinner.style.display = 'none'; // Hide loading spinner when route found
+    function checkGeofence(lat, lng) {
+        geofences.forEach(geofence => {
+            const distance = getDistance(lat, lng, geofence.latitude, geofence.longitude);
+            if (distance <= geofence.radius) {
+                insideGeofence = true;
+                showHotspotNotification("You are entering a high-risk area!");
+                checkIncidents(lat, lng); // Check for incidents in this area
+            } else {
+                insideGeofence = false;
+            }
         });
     }
 
-    function saveGeofences() {
-        const geofences = drawnItems.toGeoJSON();
-        console.log(geofences); // Prepare to send to your server
+    function showHotspotNotification(message) {
+        const notification = document.getElementById('hotspot-notification');
+        notification.innerText = message;
+        notification.style.display = 'block';
+        setTimeout(() => {
+            notification.style.display = 'none';
+        }, 5000);
     }
 
-    // Incident report form submission
+    function getDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Radius of the Earth in km
+        const dLat = degreesToRadians(lat2 - lat1);
+        const dLon = degreesToRadians(lon2 - lon1);
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(degreesToRadians(lat1)) * Math.cos(degreesToRadians(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // Distance in km
+    }
+
+    function degreesToRadians(degrees) {
+        return degrees * (Math.PI / 180);
+    }
+
+    function reroute() {
+        const routeOption = document.getElementById('route-options').value;
+        if (routeControl) {
+            map.removeControl(routeControl);
+        }
+        routeControl = L.Routing.control({
+            waypoints: predefinedPath.map(coord => L.latLng(coord.lat, coord.lng)),
+            routeWhileDragging: true,
+            createMarker: function() { return null; },
+            // Add options to avoid highways or tolls
+            router: L.Routing.mapbox('YOUR_MAPBOX_ACCESS_TOKEN', {
+                profile: routeOption === "no-highways" ? 'mapbox/cycling' : 'mapbox/driving',
+                accessToken: 'YOUR_MAPBOX_ACCESS_TOKEN' // Use your Mapbox access token
+            })
+        }).addTo(map);
+    }
+
+    function saveGeofences() {
+        // Logic to save geofences (e.g., to Firestore)
+        alert("Geofences saved!");
+    }
+
+    function fetchIncidentReports() {
+        const reportsList = document.getElementById('reports-list');
+        reportsList.innerHTML = ''; // Clear the existing list
+
+        db.collection("incidentReports").orderBy("timestamp", "desc").get()
+        .then((querySnapshot) => {
+            querySnapshot.forEach((doc) => {
+                const report = doc.data();
+                const reportElement = document.createElement('div');
+                reportElement.innerHTML = `<strong>Type:</strong> ${report.type} <br>
+                                           <strong>Description:</strong> ${report.description} <br>
+                                           <strong>Location:</strong> ${report.location.latitude}, ${report.location.longitude} <br>
+                                           <strong>Connection ID:</strong> ${report.connectionId} <br>
+                                           <strong>Reported On:</strong> ${new Date(report.timestamp.seconds * 1000).toLocaleString()} <hr>`;
+                reportsList.appendChild(reportElement);
+            });
+        })
+        .catch((error) => {
+            console.error("Error fetching incident reports: ", error);
+        });
+    }
+
     document.getElementById('incident-form').addEventListener('submit', function (event) {
         event.preventDefault();
         const incidentType = document.getElementById('incident-type').value;
         const incidentDescription = document.getElementById('incident-description').value;
         const incidentLocation = marker2 ? marker2.getLatLng() : 'No location specified';
+        const connectionId = document.getElementById('connection-id').value; // Get the connection ID
 
         // Save report to Firestore
         db.collection("incidentReports").add({
             type: incidentType,
             description: incidentDescription,
             location: new firebase.firestore.GeoPoint(incidentLocation.lat, incidentLocation.lng),
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            connectionId: connectionId // Include connection ID
         })
         .then(() => {
             showReportNotification('Thank you for your report! Your input helps make the community safer.', true);
@@ -413,37 +356,16 @@
     });
 
     function showReportNotification(message, isSuccess) {
-        const reportNotification = document.getElementById("report-notification");
-        reportNotification.innerText = message;
-        reportNotification.className = isSuccess ? 'success' : 'error';
-        reportNotification.style.display = 'block';
-
+        const notification = document.getElementById('report-notification');
+        notification.innerText = message;
+        notification.className = isSuccess ? 'notification success' : 'notification error';
+        notification.style.display = 'block';
         setTimeout(() => {
-            reportNotification.style.display = 'none';
+            notification.style.display = 'none';
         }, 5000);
     }
 
-    function fetchIncidentReports() {
-        const reportsList = document.getElementById('reports-list');
-        reportsList.innerHTML = ''; // Clear the existing list
-
-        db.collection("incidentReports").orderBy("timestamp", "desc").get()
-        .then((querySnapshot) => {
-            querySnapshot.forEach((doc) => {
-                const report = doc.data();
-                const reportElement = document.createElement('div');
-                reportElement.innerHTML = `<strong>Type:</strong> ${report.type} <br>
-                                           <strong>Description:</strong> ${report.description} <br>
-                                           <strong>Location:</strong> ${report.location.latitude}, ${report.location.longitude} <br>
-                                           <strong>Reported On:</strong> ${new Date(report.timestamp.seconds * 1000).toLocaleString()} <hr>`;
-                reportsList.appendChild(reportElement);
-            });
-        })
-        .catch((error) => {
-            console.error("Error fetching incident reports: ", error);
-        });
-    }
+    fetchIncidentReports(); // Initial fetch of incident reports
 </script>
-
 </body>
 </html>
