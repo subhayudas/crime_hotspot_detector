@@ -152,11 +152,18 @@
 <script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 <script>
-    const geofences = [
+   const geofences = [
         { latitude: 23.25, longitude: 85.26, radius: 800 }, 
         { latitude: 23.30, longitude: 85.30, radius: 600 }, 
-        { latitude: 23.20, longitude: 85.20, radius: 500 }   
+        { latitude: 23.20, longitude: 85.20, radius: 500 },
+        {latitude : 23.25, longitude: 85.17, radius: 300},
+        { latitude: 23.153, longitude: 85.34, radius: 400},
+        {latitude: 23.27, longitude: 85.27, radius: 450},
+        {latitude: 23.312, longitude: 85.29, radius: 500},
+        { latitude: 23.23, longitude: 85.22, radius: 350 },
+        { latitude: 23.26, longitude: 85.31, radius: 400 }
     ];
+
 
     const predefinedPath = [
         { lat: 23.25, lng: 85.26 },
