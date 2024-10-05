@@ -7,16 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
-     <!-- Google Font (Roboto) -->
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
-
-    <!-- Font Awesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-
-    <!-- TailwindCSS (for the new navbar) -->
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
@@ -96,20 +87,15 @@
             display: block;
             margin: 10px 0 5px;
         }
-        textarea {
+        textarea, select {
             width: calc(100% - 20px);
             padding: 10px;
             border-radius: 5px;
             border: 1px solid #ccc;
             margin-bottom: 10px;
-            resize: none;
         }
-        select {
-            width: calc(100% - 20px);
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-            margin-bottom: 10px;
+        textarea {
+            resize: none;
         }
     </style>
 </head>
@@ -164,6 +150,12 @@
         { latitude: 23.20, longitude: 85.20, radius: 2000 }
     ];
 
+    const predefinedPath = [
+        { lat: 23.25, lng: 85.26 },
+        { lat: 23.30, lng: 85.30 },
+        { lat: 23.20, lng: 85.20 }
+    ];
+
     const options = {
         enableHighAccuracy: true,
         timeout: 5000,
@@ -197,14 +189,20 @@
         console.log(geoJson);
     });
 
-    let incidentMarker;
-
     // Adding marker for user-reported incident location
     map.on('click', function(e) {
-        if (incidentMarker) {
-            map.removeLayer(incidentMarker);
+        // Move marker2 to the clicked position
+        if (marker2) {
+            marker2.setLatLng(e.latlng);
+        } else {
+            // If marker2 doesn't exist, create it
+            marker2 = L.marker(e.latlng).addTo(map).bindPopup("Destination Location").openPopup();
         }
-        incidentMarker = L.marker(e.latlng).addTo(map).bindPopup("Incident Location").openPopup();
+        
+        // Update the route if marker1 exists
+        if (marker1) {
+            plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
+        }
     });
 
     function successUser(pos) {
@@ -220,12 +218,18 @@
         circle1 = L.circle([lat1, lng1], { radius: 500, color: "#FF5733", fillColor: "#FFC300", fillOpacity: 0.5 }).addTo(map);
 
         checkGeofences(lat1, lng1);
+        checkProximityToPath(lat1, lng1);
 
         if (!zoomed) {
             zoomed = map.fitBounds(circle1.getBounds());
         }
 
         map.setView([lat1, lng1]);
+
+        // Update the route whenever the user position changes
+        if (marker2) {
+            plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
+        }
     }
 
     function checkGeofences(userLat, userLng) {
@@ -252,6 +256,15 @@
         if (!insideAnyGeofence) {
             showNotification("You are outside all geofenced areas.", true);
         }
+    }
+
+    function checkProximityToPath(userLat, userLng) {
+        predefinedPath.forEach(point => {
+            const distance = calculateDistance(userLat, userLng, point.lat, point.lng);
+            if (distance < 100) { // Distance in meters
+                alert(`You are approaching a hotspot, please consider changing your path.`);
+            }
+        });
     }
 
     function calculateDistance(lat1, lng1, lat2, lng2) {
@@ -282,47 +295,15 @@
         }
     }
 
-    // Function for rerouting the user based on selected options
-    function reroute() {
-    plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
-}
-
-    function simulateUser2() {
-        const lat2 = marker1.getLatLng().lat + 0.005;
-        const lng2 = marker1.getLatLng().lng + 0.005;
-        successUser2(lat2, lng2);
-    }
-
-    function successUser2(lat2, lng2) {
-        if (marker2) {
-            map.removeLayer(marker2);
-            map.removeLayer(circle2);
-        }
-
-        marker2 = L.marker([lat2, lng2]).addTo(map).bindPopup("Simulated User Location");
-        circle2 = L.circle([lat2, lng2], { radius: 500, color: "#1E90FF", fillColor: "#87CEFA", fillOpacity: 0.5 }).addTo(map);
-
-        plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
-
-        map.setView([lat2, lng2]);
-    }
-
-    // High-crime areas data for route avoidance
-    const highCrimeAreas = [
-        { lat: 23.25, lng: 85.26 },
-        { lat: 23.30, lng: 85.30 },
-        { lat: 23.20, lng: 85.20 }
-    ];
-
     function plotRoute(locations) {
-    if (routeControl) {
-        map.removeControl(routeControl);
+        if (routeControl) {
+            map.removeControl(routeControl);
+        }
+        routeControl = L.Routing.control({
+            waypoints: locations,
+            routeWhileDragging: false
+        }).addTo(map);
     }
-    routeControl = L.Routing.control({
-        waypoints: locations,
-        routeWhileDragging: false
-    }).addTo(map);
-}
 
     function saveGeofences() {
         const geofences = drawnItems.toGeoJSON();
@@ -334,7 +315,7 @@
         event.preventDefault();
         const incidentType = document.getElementById('incident-type').value;
         const incidentDescription = document.getElementById('incident-description').value;
-        const incidentLocation = incidentMarker ? incidentMarker.getLatLng() : 'No location specified';
+        const incidentLocation = marker2 ? marker2.getLatLng() : 'No location specified';
 
         console.log('Incident Report:', {
             type: incidentType,
@@ -344,25 +325,22 @@
 
         showReportNotification('Thank you for your report! Your input helps make the community safer.', true);
         this.reset();
-        if (incidentMarker) {
-            map.removeLayer(incidentMarker);
-            incidentMarker = null;
+        if (marker2) {
+            map.removeLayer(marker2);
+            marker2 = null;
         }
     });
 
     function showReportNotification(message, isSuccess) {
         const reportNotification = document.getElementById("report-notification");
         reportNotification.innerText = message;
-        reportNotification.className = isSuccess ? 'success-notification' : 'error-notification';
+        reportNotification.className = isSuccess ? 'success' : 'error';
         reportNotification.style.display = 'block';
 
         setTimeout(() => {
             reportNotification.style.display = 'none';
         }, 5000);
     }
-
-    // Simulate user location update every 5 seconds
-    setInterval(simulateUser2, 5000);
 </script>
 
 </body>
