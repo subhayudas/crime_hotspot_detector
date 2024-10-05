@@ -44,10 +44,10 @@
             display: none; /* Initially hidden */
         }
         .inside {
-            background-color: #17a2b8;
+            background-color: #dc3545; /* Red for inside */
         }
         .outside {
-            background-color: #dc3545;
+            background-color: #28a745; /* Green for outside */
         }
     </style>
 </head>
@@ -76,7 +76,7 @@
                     maximumAge: 30000,
                     timeout: 5000
                 });
-                showNotification("Location tracking started.", true);
+                showNotification("Location tracking started.", false);
             } else {
                 alert("Geolocation is not supported by this browser.");
             }
@@ -94,7 +94,7 @@
                     insideAnyGeofence = true;
                     if (!insideGeofence) {
                         insideGeofence = true;
-                        const message = `You have entered the geofenced area at (${geofence.latitude}, ${geofence.longitude})!`;
+                        const message = `You have entered the geofenced area at (${geofence.latitude}, ${geofence.longitude})!Please change your path`;
                         showNotification(message, true);
                     }
                 }
@@ -106,7 +106,7 @@
             }
 
             if (!insideAnyGeofence) {
-                showNotification("You are outside all geofenced areas.", false);
+                showNotification("You are outside all geofenced areas.", true);
             }
         }
 
