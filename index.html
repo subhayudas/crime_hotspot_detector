@@ -11,6 +11,12 @@
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin="" />
 
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+    <!-- TailwindCSS (for the new navbar) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
     <style>
         /* Global Styles */
         body {
@@ -20,21 +26,14 @@
             padding: 0;
         }
 
-        header {
-            background-color: #4CAF50;
-            color: white;
-            padding: 20px;
-            text-align: center;
-            font-size: 24px;
-            font-weight: 700;
-        }
-
+        /* Map Container */
         #map-container {
             display: flex;
             justify-content: center;
             align-items: center;
             flex-direction: column;
             padding: 20px;
+            margin-top: 20px;
         }
 
         #map {
@@ -76,10 +75,6 @@
         }
 
         @media (max-width: 480px) {
-            header {
-                font-size: 20px;
-            }
-
             #map {
                 height: 300px;
             }
@@ -93,9 +88,71 @@
 </head>
 <body>
 
-    <header>
-        Real-Time Location & Shortest Route Finder
-    </header>
+    <!-- Navigation Bar (New TailwindCSS Navbar) -->
+    <nav class="bg-gray-800">
+        <div class="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
+            <div class="relative flex h-16 items-center justify-between">
+                <div class="absolute inset-y-0 left-0 flex items-center sm:hidden">
+                    <!-- Mobile menu button-->
+                    <button type="button" class="relative inline-flex items-center justify-center rounded-md p-2 text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white" aria-controls="mobile-menu" aria-expanded="false">
+                        <span class="absolute -inset-0.5"></span>
+                        <span class="sr-only">Open main menu</span>
+                        <svg class="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                        </svg>
+                        <svg class="hidden h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="flex flex-1 items-center justify-center sm:items-stretch sm:justify-start">
+                    <div class="flex flex-shrink-0 items-center">
+                        <img class="h-8 w-auto" >
+                    </div>
+                    <div class="hidden sm:ml-6 sm:block">
+                        <div class="flex space-x-4">
+                            <img src="images/PHOTO-2024-10-05-15-11-15.jpg" class="h-8" alt="SafetyNet Logo" />
+                            <a href="#" class="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white" aria-current="page">Map</a>
+                            <a href="#" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white">History</a>
+                            <a href="#" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white">Volunteer</a>
+  
+                        </div>
+                    </div>
+                </div>
+                <div class="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0">
+                    <button type="button" class="relative rounded-full bg-gray-800 p-1 text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800">
+                        <span class="absolute -inset-1.5"></span>
+                        <span class="sr-only">View notifications</span>
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                        </svg>
+                    </button>
+
+                    <!-- Profile dropdown -->
+                    <div class="relative ml-3">
+                        <div>
+                            <button type="button" class="relative flex rounded-full bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800" id="user-menu-button" aria-expanded="false" aria-haspopup="true">
+                                <span class="absolute -inset-1.5"></span>
+                                <span class="sr-only">Open user menu</span>
+                                <img class="h-8 w-8 rounded-full" src="images/profilepic.png" alt="">
+                            </button>
+                        </div>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile menu, show/hide based on menu state -->
+        <div class="sm:hidden" id="mobile-menu">
+            <div class="space-y-1 px-2 pt-2 pb-3">
+                <a href="#" class="block rounded-md bg-gray-900 px-3 py-2 text-base font-medium text-white" aria-current="page">Map</a>
+                <a href="#" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white">History</a>
+                <a href="#" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-700 hover:text-white">Volunteer</a>
+       
+            </div>
+        </div>
+    </nav>
 
     <div id="map-container">
         <div id="map"></div>
@@ -105,104 +162,184 @@
         </div>
     </div>
 
+    <div class="bg-gray-100 py-24 sm:py-32">
+        <div class="mx-auto max-w-7xl grid gap-x-8 gap-y-20 px-6 lg:px-8 xl:grid-cols-3">
+          <div class="max-w-2xl">
+            <h2 class="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Meet our contributors</h2>
+            <p class="mt-6 text-lg leading-8 text-gray-700">Our dedicated leaders are focused on innovation and progress. Get to know the people behind our vision.</p>
+          </div>
+          <ul role="list" class="grid gap-x-8 gap-y-12 sm:grid-cols-2 sm:gap-y-16 xl:col-span-2">
+            <li>
+              <div class="flex items-center gap-x-6">
+                <img class="h-16 w-16 rounded-full border-2 border-green-500" src="images/profilepic.png" alt="Subhayu Das">
+                <div>
+                  <h3 class="text-lg font-semibold leading-7 tracking-tight text-gray-900">Subhayu Das</h3>
+                  <p class="text-sm font-semibold leading-6 text-green-600">Co-contributer</p>
+                </div>
+              </div>
+            </li>
+      
+            <li>
+              <div class="flex items-center gap-x-6">
+                <img class="h-16 w-16 rounded-full border-2 border-green-500" src="images/PHOTO-2024-10-05-14-37-10.jpg" alt="Michael Foster">
+                <div>
+                  <h3 class="text-lg font-semibold leading-7 tracking-tight text-gray-900">Anurag Mitti</h3>
+                  <p class="text-sm font-semibold leading-6 text-green-600">Co-contributer</p>
+                </div>
+              </div>
+            </li>
+      
+            <li>
+              <div class="flex items-center gap-x-6">
+                <img class="h-16 w-16 rounded-full border-2 border-green-500" src="images/PHOTO-2024-10-05-14-37-04.jpg">
+                <div>
+                  <h3 class="text-lg font-semibold leading-7 tracking-tight text-gray-900">vishweshwar Akula</h3>
+                  <p class="text-sm font-semibold leading-6 text-green-600">Co-contributer</p>
+                </div>
+              </div>
+            </li>
+      
+            
+      
+          </ul>
+        </div>
+      </div>
+
+
+      <footer class="bg-gray-100 rounded-lg shadow dark:bg-gray-800 mt-4">
+        <div class="w-full max-w-screen-xl mx-auto p-4 md:py-8">
+            <div class="sm:flex sm:items-center sm:justify-between">
+                <a href="#" class="flex items-center mb-4 sm:mb-0 space-x-3 rtl:space-x-reverse">
+                    <img src="images/PHOTO-2024-10-05-15-11-15.jpg" class="h-8" alt="SafetyNet Logo" />
+                    <span class="self-center text-2xl font-semibold whitespace-nowrap text-green-600 dark:text-white">SafetyNet</span>
+                </a>
+                <ul class="flex flex-wrap items-center mb-6 text-sm font-medium text-gray-600 sm:mb-0 dark:text-gray-300">
+                    <li>
+                        <a href="#" class="hover:underline me-4 md:me-6">About Us</a>
+                    </li>
+                    <li>
+                        <a href="#" class="hover:underline me-4 md:me-6">Privacy Policy</a>
+                    </li>
+                    <li>
+                        <a href="#" class="hover:underline me-4 md:me-6">Terms of Service</a>
+                    </li>
+                    <li>
+                        <a href="#" class="hover:underline">Contact</a>
+                    </li>
+                </ul>
+            </div>
+            <hr class="my-6 border-gray-300 sm:mx-auto dark:border-gray-700 lg:my-8" />
+            <span class="block text-sm text-gray-600 sm:text-center dark:text-gray-400">© 2024 <a href="#" class="hover:underline text-green-600 dark:text-white">SafetyNet™</a>. All Rights Reserved.</span>
+        </div>
+    </footer>
+    
+      
+
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
     
     <!-- Leaflet Routing Machine -->
     <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 
-    <!-- Custom Script -->
-    <script>
+    <script >
         const options = {
-            enableHighAccuracy: true,
-            timeout: 5000,
-            maximumAge: 2000
-        };
+    enableHighAccuracy: true,
+    timeout: 5000,
+    maximumAge: 2000
+};
 
-        const map = L.map('map').setView([51.505, -0.09], 13); 
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
+const map = L.map('map').setView([51.505, -0.09], 13); 
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap'
+}).addTo(map);
 
-        let marker1, circle1, marker2, circle2, routeControl, zoomed;
+let marker1, circle1, marker2, circle2, routeControl, zoomed;
 
-        // Track first user's location
-        navigator.geolocation.watchPosition(successUser1, error, options);
+// Track first user's location
+navigator.geolocation.watchPosition(successUser1, error, options);
 
-        function successUser1(pos) {
-            const lat1 = pos.coords.latitude;
-            const lng1 = pos.coords.longitude;
+function successUser1(pos) {
+    const lat1 = pos.coords.latitude;
+    const lng1 = pos.coords.longitude;
 
-            if (marker1) {
-                map.removeLayer(marker1);
-                map.removeLayer(circle1);
-            }
+    if (marker1) {
+        map.removeLayer(marker1);
+        map.removeLayer(circle1);
+    }
 
-            // Add marker and circle for User 1
-            marker1 = L.marker([lat1, lng1], {icon: userIcon("User 1")}).addTo(map).bindPopup("User 1 Location");
-            circle1 = L.circle([lat1, lng1], { radius: 500, color: "#FF5733", fillColor: "#FFC300", fillOpacity: 0.5 }).addTo(map);
+    // Add marker and circle for User 1
+    marker1 = L.marker([lat1, lng1], {icon: userIcon("User 1")}).addTo(map).bindPopup("User 1 Location");
+    circle1 = L.circle([lat1, lng1], { radius: 500, color: "#FF5733", fillColor: "#FFC300", fillOpacity: 0.5 }).addTo(map);
 
-            // Simulate a second user's location (use actual coordinates if available)
-            const lat2 = lat1 + 0.005; // Adjusted latitude for second user
-            const lng2 = lng1 + 0.005; // Adjusted longitude for second user
-            successUser2(lat2, lng2);
+    // Simulate a second user's location (use actual coordinates if available)
+    const lat2 = lat1 + 0.005; // Adjusted latitude for second user
+    const lng2 = lng1 + 0.005; // Adjusted longitude for second user
+    successUser2(lat2, lng2);
 
-            if (!zoomed) {
-                zoomed = map.fitBounds(circle1.getBounds());
-            }
+    if (!zoomed) {
+        zoomed = map.fitBounds(circle1.getBounds());
+    }
 
-            map.setView([lat1, lng1]);
-        }
+    map.setView([lat1, lng1]);
+}
 
-        // Handle second user (simulated or real data)
-        function successUser2(lat2, lng2) {
-            if (marker2) {
-                map.removeLayer(marker2);
-                map.removeLayer(circle2);
-            }
+// Handle second user (simulated or real data)
+function successUser2(lat2, lng2) {
+    if (marker2) {
+        map.removeLayer(marker2);
+        map.removeLayer(circle2);
+    }
 
-            // Add marker and circle for User 2
-            marker2 = L.marker([lat2, lng2], {icon: userIcon("User 2")}).addTo(map).bindPopup("User 2 Location");
-            circle2 = L.circle([lat2, lng2], { radius: 500, color: "#1E90FF", fillColor: "#87CEFA", fillOpacity: 0.5 }).addTo(map);
+    // Add marker and circle for User 2
+    marker2 = L.marker([lat2, lng2], {icon: userIcon("User 2"), draggable: true}).addTo(map).bindPopup("Drag me!");
+    circle2 = L.circle([lat2, lng2], { radius: 500, color: "#1E90FF", fillColor: "#87CEFA", fillOpacity: 0.5 }).addTo(map);
 
-            // Plot the shortest route between User 1 and User 2
-            plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
+    // Event listener to detect marker drag and update position
+    marker2.on('drag', function (e) {
+        const newLatLng = marker2.getLatLng();
+        circle2.setLatLng(newLatLng); // Move the circle along with the marker
+        reroute();  // Recalculate the route when marker is moved
+    });
 
-            map.setView([lat2, lng2]);
-        }
+    // Plot the shortest route between User 1 and User 2
+    plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
 
-        // Create a custom icon for users
-        function userIcon(label) {
-            return L.divIcon({
-                className: 'custom-icon',
-                html: `<div style="background-color:#fff;border:1px solid #000;border-radius:50%;padding:10px;text-align:center;">${label}</div>`,
-                iconSize: [50, 50]
-            });
-        }
+    map.setView([lat2, lng2]);
+}
 
-        // Plot the shortest route between two points
-        function plotRoute(locations) {
-            if (routeControl) {
-                map.removeControl(routeControl);
-            }
-            routeControl = L.Routing.control({
-                waypoints: locations,
-                routeWhileDragging: false
-            }).addTo(map);
-        }
+// Create a custom icon for users
+function userIcon(label) {
+    return L.divIcon({
+        className: 'custom-icon',
+        html: `<div style="background-color:#fff;border:1px solid #000;border-radius:50%;padding:10px;text-align:center;">${label}</div>`,
+        iconSize: [50, 50]
+    });
+}
 
-        function reroute() {
-            plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
-        }
+// Plot the shortest route between two points
+function plotRoute(locations) {
+    if (routeControl) {
+        map.removeControl(routeControl);
+    }
+    routeControl = L.Routing.control({
+        waypoints: locations,
+        routeWhileDragging: false
+    }).addTo(map);
+}
 
-        function error(err) {
-            if (err.code === 1) {
-                alert("Please allow geolocation access");
-            } else {
-                alert("Cannot get current location");
-            }
-        }
+function reroute() {
+    plotRoute([marker1.getLatLng(), marker2.getLatLng()]);
+}
+
+function error(err) {
+    if (err.code === 1) {
+        alert("Please allow geolocation access");
+    } else {
+        alert("Cannot get current location");
+    }
+}
+
     </script>
 </body>
 </html>
